@@ -432,8 +432,10 @@ ${failedAddSongsList}
     // 開始匯入:迭代所有的歌曲資料
     let songSchedule = 0
     async function startProcessSongs() {
-        // 阻止
-        if (jsonContent === null) { return alert('upload json first') }
+        // 阻止 CSV沒有匯入
+        if (jsonContent === null) { return alert('請先上傳CSV檔') }
+        // 阻止 目標歌單沒有選擇
+        if (selectedPlaylist === null || selectedPlaylist === '') { return alert('請先選擇目標歌單') }
 
         for (let i = songSchedule; i < jsonContent.length; i++) {
             let song = jsonContent[i]
