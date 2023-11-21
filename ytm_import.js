@@ -190,7 +190,7 @@ transform: rotate(45deg);
         document.body.appendChild(customDiv);
         document.querySelector('#start').addEventListener('click', startProcessSongs)
         document.querySelector('#yet').addEventListener('click', yetHandler)
-        document.querySelector('#err-list').addEventListener('click', errListViewer)
+        document.querySelector('#err-list').addEventListener('click', errListViewerHandler)
         document.querySelector('#pause-process').addEventListener('click', pauseHandler)
         document.querySelector('#panel-toggle').addEventListener('click', panelToggleHandler)
 
@@ -208,7 +208,7 @@ transform: rotate(45deg);
         const fileInput = document.getElementById('uploader')
         fileInput.addEventListener('change', function () {
             let file = fileInput.files[0];
-            if (!file) { return }
+            if (!file) return
 
             // 使用異步處理，避免凍結
             setTimeout(function () {
@@ -257,33 +257,35 @@ transform: rotate(45deg);
                 jsonContent.push(trackInfo);
             }
         }
-        console.log('jsonData', jsonContent)
+        console.log('csv to json成功', 'jsonContent', jsonContent)
     }
 
     // 歌曲匯入失敗表
-    const failedAddSongs = []
-    function errListViewer() {
+    let failedAddSongs = []
+    function errListViewerHandler() {
         // 檢查提供的數據是否為空，如果為空則在控制台中輸出錯誤並返回
         if (failedAddSongs.length === 0) {
             alert('沒有數據提供下載');
             return;
         }
 
-        console.log('failedAddSongs', failedAddSongs)
+        console.log('failedAddSongs: ', failedAddSongs)
         // 排序 failedAddSongs，confirm 訊息用
         let failedAddSongsList = failedAddSongs.map((song, index) => {
-            ` ${index + 1}. ${song['Artist Names']} - ${song['Track Name']} `
+            return ` ${index + 1}. ${song['Artist Names']} - ${song['Track Name']} `
         }).join('\n');
+
         let confirmMsg = `
 以下是尚未添加的歌曲
 ${failedAddSongsList}
-未添加的歌曲列表已準備就緒
-是否下載
+未添加的歌曲列表已準備就緒，是否下載
         `
         if (confirm(`${confirmMsg}`)) {
             failedAddSongsDownload()
         }
     }
+
+    // 失敗表，下載功能
     function failedAddSongsDownload() {
         // 創建一個新的 Blob 物件，將數據轉換為 JSON 格式的字符串。
         // Blob 物件可以被認為是不可變的數據塊。
@@ -300,10 +302,8 @@ ${failedAddSongsList}
         // 設置 <a> 元素的 href 屬性為上面創建的 blob URL
         a.href = url;
 
-        // 設置下載文件的名稱，如果調用函數時沒有提供文件名，
-        // 則默認為 'download.json'
-        // a.download = filename || 'download.json';
-        a.download = 'download.json';
+        // 設置下載文件的名稱
+        a.download = 'ErrList.json';
 
         // 將 <a> 元素設為不顯示
         a.style.display = 'none';
@@ -347,7 +347,7 @@ ${failedAddSongsList}
         const searchInput = document.querySelector('.ytmusic-search-box input');
         const searchValue = `${song['Track Name']} ${song['Artist Names']} ${song['Album Name']} ${song['Album Release']}`
         searchInput.value = searchValue
-        console.log('搜尋框 Typed')
+        // console.log('搜尋框 Typed')
         return searchInput
     }
     // 送出搜尋，模擬Enter鍵
@@ -367,59 +367,72 @@ ${failedAddSongsList}
         enterEvents.forEach(event => {
             searchInputResult.dispatchEvent(new KeyboardEvent(event, eventInitDict));
         });
-        console.log('Enter')
     }
-    // 點擊"儲存至播放清單"按鈕
-    async function saveBtnClicked() {
-        // **熱門搜尋結果區塊的"儲存"
-        // "儲存"按鈕可能會變成: "更多"、"隨機撥放"，這時就靠底下的歌曲區塊儲存
-        let saveBtn = document.querySelector('ytmusic-card-shelf-renderer button[aria-label="儲存至播放清單"]');
-        if (saveBtn) {
-            saveBtn.click();
-            console.log('熱門區 clicked')
-            return
+    // 點擊歌曲篩選
+    async function songTagClickHandler() {
+        let searchResultFilterTag = document.querySelectorAll('yt-formatted-string.text.style-scope.ytmusic-chip-cloud-chip-renderer');
+        let songTag = Array.from(searchResultFilterTag).find((el) => el.textContent === '歌曲');
+        if (!songTag) {
+            throw new Error("沒找到 歌曲Tag")
+        }
+        songTag.click()
+        // console.log('歌曲Tag clicked')
+    }
+    // 檢查歌名 與 搜尋結果 是否一致
+    async function trackNameCheck(song) {
+        // 按下歌曲tag，篩選出來的結果(可能有很多)
+        let firstFilterResult = document.querySelector('yt-formatted-string.title.style-scope.ytmusic-responsive-list-item-renderer.complex-string[respect-html-dir][ellipsis-truncate][ellipsis-truncate-styling]')
+        let firstTrackName = firstFilterResult.children[0].textContent
+        if (song['Track Name'] != firstTrackName) {
+            throw new Error('歌曲名稱不相符')
         }
 
-        // **歌曲區塊的"儲存"
+    }
+    // 點擊"儲存至播放清單"按鈕
+    async function saveBtnClickHandler() {
+        // 搜尋結果篩選 tag，歌曲或影片，點擊歌曲
         // 點擊"..."按鈕，讓選單面板出現
-        let theMoreOptionsButton = document.querySelector('tp-yt-paper-icon-button#button[title="其他動作"]')
+        let firstResult = document.querySelector('ytmusic-responsive-list-item-renderer.style-scope.ytmusic-shelf-renderer')
+        let theMoreOptionsButton = firstResult.querySelector('tp-yt-paper-icon-button#button[aria-label="其他動作"]')
+        // let theMoreOptionsButton = document.querySelector('yt-button-shape#button-shape.style-scope.ytmusic-menu-renderer[aria-label="其他動作"]')
         theMoreOptionsButton.click()
-        console.log('...按鈕 clicked')
+        // console.log('...按鈕 clicked')
         await sleep(500)
+
         // 點擊 選單面板的 "儲存至播放清單"
-        const elements = document.querySelectorAll('yt-formatted-string.text.style-scope.ytmusic-menu-navigation-item-renderer');
+        const optionsMenu = document.querySelectorAll('yt-formatted-string.text.style-scope.ytmusic-menu-navigation-item-renderer');
         // "..."裡面有很多el，只好用find來找結果
-        const targetElement = Array.from(elements).find(el => el.textContent.trim() === '儲存至播放清單')
-        if (targetElement) {
-            targetElement.click();
-            console.log('歌曲區 clicked')
-            // return true;
-            return
+        const saveBtn = Array.from(optionsMenu).find(el => el.textContent.trim() === '儲存至播放清單')
+        if (!saveBtn) {
+            throw new Error("沒找到'儲存至播放清單'按鈕或元素");
         }
-        throw new Error("未找到'儲存至播放清單'按鈕或元素");
+        saveBtn.click();
+        // console.log('歌曲區 clicked')
     }
 
     // 流程統整
     async function addSongToPlaylist(song, playListName) {
-        let searchInputResult = setValueToSearchInput(song) // 找到搜尋框並輸入歌名
+        let searchInputResult = setValueToSearchInput(song) // 找到搜尋框並輸入歌名(找到並返回輸入框元素)
         await sleep(500) // 怕輸入太快就ENTER送出
-        simulateEnterKey(searchInputResult) // 送出搜尋，模擬Enter鍵
+        simulateEnterKey(searchInputResult) // 送出搜尋，模擬Enter鍵(輸入框元素foucus)
         await sleep(1500) // 等頁面加載
-        await saveBtnClicked() // 儲存至播放清單 按鈕
+        await songTagClickHandler() // 按下結果篩選
+        await sleep(1000)
+        await trackNameCheck(song) // 檢查歌名是否一致
+        await saveBtnClickHandler(song) // 儲存至播放清單 按鈕
         await sleep(1000)
         let playlistBtn = document.querySelector(`button[aria-label="${playListName} "]`);
         if (!playlistBtn) {
             throw new Error("未找到'儲存至播放清單'按鈕或元素");
         }
         playlistBtn.click();
-        console.log('歌曲新增 成功')
+        console.log(`%c歌曲新增成功`, "font-size:14px;color:green")
     }
 
     // 開始匯入:迭代所有的歌曲資料
     let songSchedule = 0
     async function startProcessSongs() {
         // 阻止
-        console.log('jsonContent', jsonContent)
         if (jsonContent === null) { return alert('upload json first') }
 
         for (let i = songSchedule; i < jsonContent.length; i++) {
@@ -430,13 +443,14 @@ ${failedAddSongsList}
                 songSchedule = i
                 return
             }
-
             try {
-                console.log(`%c第${i + 1}首`, 'color:green;font-size: 20px;')
+                console.log(`%c第${i + 1}首: ${song['Artist Names']} - ${song['Track Name']} `, 'color:green;font-size: 20px;')
                 await addSongToPlaylist(song, selectedPlaylist);
             } catch (error) {
+                // 將失敗的歌曲&原因 加入 失敗表
+                song.errorMessage = error.message
                 failedAddSongs.push(song)
-                console.log(`%c錯誤報告:${error.message}`, 'color:orange;font-size: 20px;')
+                console.log(`%c錯誤報告: ${error.message}`, 'color:orange;font-size: 20px;')
             }
 
             // 更新 添加進度
