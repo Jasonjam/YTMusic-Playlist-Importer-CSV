@@ -248,10 +248,10 @@ transform: rotate(45deg);
             if (values.length === headers.length) {
                 const trackInfo = {
                     // CSV通常格式都是固定的，所以採用這個陣列固定數字查找
-                    'Track Name': values[1].trim(),
-                    'Artist Names': values[3].trim(),
-                    'Album Name': values[5].trim(),
-                    'Album Release': values[8].trim()
+                    'Track Name': values[1].trim(), // Track Name
+                    'Artist Names': values[3].trim(), // Artist Names
+                    'Album Name': values[5].trim(), // Album Name
+                    'Album Release': values[8].trim() // Album Release Date
                 };
                 console.log('trackInfo', trackInfo)
                 jsonContent.push(trackInfo);
