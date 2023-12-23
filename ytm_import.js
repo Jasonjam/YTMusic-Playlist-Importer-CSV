@@ -7,6 +7,7 @@
 // @match        *://music.youtube.com/*
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
 // @grant        none
+// @require      https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js
 // ==/UserScript==
 
 (function () {
@@ -203,7 +204,6 @@ transform: rotate(45deg);
     createCustomDiv()
 
     // 檔案選擇器功能(監聽)
-    let jsonContent = []
     function fileInputHandler() {
         const fileInput = document.getElementById('uploader')
         fileInput.addEventListener('change', function () {
@@ -215,12 +215,10 @@ transform: rotate(45deg);
                 let reader = new FileReader();
 
                 reader.onload = function (event) {
-                    // 原本讀取 json
-                    // jsonContent = JSON.parse(event.target.result);
                     // 讀取 csv 轉成 json
                     convertCsvToJson(event)
                     // 在這裡你可以使用jsonContent來進行後續操作
-                    console.log('jsonContent', jsonContent);
+
                     // 先控制兩個按鈕的顯示與否
                     document.querySelector('#yet').style.display = 'none'
                     document.querySelector('#start').style.display = 'inline-block'
@@ -233,31 +231,29 @@ transform: rotate(45deg);
 
         });
     }
+    let jsonContent = null
     function convertCsvToJson(e) {
         const csv = e.target.result
         console.log('csv', csv)
-        const csvCutLines = csv.split('\n') // 將CSV內容分割成數行，原本是一個字串到底
-        console.log('csvCutLines', csvCutLines)
-        const lines = csvCutLines.map((line) => { // 刪除"\"符號
-            return line.split('"').join('')
-        })
-        console.log('lines', lines)
-        const headers = lines[0].split(',') // CSV第一行，通常是標題
-        for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',');
-            if (values.length === headers.length) {
-                const trackInfo = {
-                    // CSV通常格式都是固定的，所以採用這個陣列固定數字查找
-                    'Track Name': values[1].trim(), // Track Name
-                    'Artist Names': values[3].trim(), // Artist Names
-                    'Album Name': values[5].trim(), // Album Name
-                    'Album Release': values[8].trim() // Album Release Date
-                };
-                console.log('trackInfo', trackInfo)
-                jsonContent.push(trackInfo);
+        // 找出 track name, artist names, album name, album release date
+        Papa.parse(csv, {
+            header: true,
+            beforeFirstChunk: function (chunk) {
+                // 將 'Artist Name(s)' 替換為 'Artist Names'
+                return chunk.replace('Artist Name(s)', 'Artist Names');
+            },
+            complete: (results) => {
+                let csvData = results.data
+                console.log('csvData', csvData)
+
+                jsonContent = csvData.map(row => ({
+                    'Track Name': row['Track Name'],
+                    'Artist Names': row['Artist Names'],
+                    'Album Name': row['Album Name'],
+                    'Album Release': row['Album Release Date']
+                }))
             }
-        }
-        console.log('csv to json成功', 'jsonContent', jsonContent)
+        })
     }
 
     // 歌曲匯入失敗表
@@ -342,7 +338,7 @@ ${failedAddSongsList}
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-    // 找到搜尋框並輸入歌名
+    // 找到搜尋框並輸入歌名 (song包含歌曲等資訊)
     function setValueToSearchInput(song) {
         const searchInput = document.querySelector('.ytmusic-search-box input');
         const searchValue = `${song['Track Name']} ${song['Artist Names']} ${song['Album Name']} ${song['Album Release']}`
@@ -378,16 +374,46 @@ ${failedAddSongsList}
         songTag.click()
         // console.log('歌曲Tag clicked')
     }
+
     // 檢查歌名 與 搜尋結果 是否一致
     async function trackNameCheck(song) {
-        // 按下歌曲tag，篩選出來的結果(可能有很多)
-        let firstFilterResult = document.querySelector('yt-formatted-string.title.style-scope.ytmusic-responsive-list-item-renderer.complex-string[respect-html-dir][ellipsis-truncate][ellipsis-truncate-styling]')
-        let firstTrackName = firstFilterResult.children[0].textContent
-        if (song['Track Name'] != firstTrackName) {
+        // 按下歌曲篩選按鈕，出來的結果(可能有很多)，找第一個
+        let pageFirstResultBySongFilterBtn = document.querySelector('yt-formatted-string.title.style-scope.ytmusic-responsive-list-item-renderer.complex-string[respect-html-dir][ellipsis-truncate][ellipsis-truncate-styling]')
+        let pageFirstTrackName = pageFirstResultBySongFilterBtn.children[0].textContent
+
+        // 刪除 歌曲的其餘資訊 ( remix & feat ...其餘資訊 )
+        function removeExtraInfo(inputTrackName) {
+            function removeSectionByKeyword(keyword) {
+                // 找關鍵字，且不區分大小寫
+                let index = inputTrackName.toLowerCase().indexOf(keyword);
+
+                if (index !== -1) {
+                    // 找 "(" , "[" 的開頭位置
+                    let start = Math.max(inputTrackName.lastIndexOf('(', index), inputTrackName.lastIndexOf('[', index));
+                    // 找 "(" , "[" 的尾巴位置，根據start的結果來決定
+                    let end = start !== -1 ? (inputTrackName.indexOf(')', start) !== -1 ? inputTrackName.indexOf(')', start) : inputTrackName.indexOf(']', start)) : -1;
+                    // 如果都有找到 start & end
+                    if (start !== -1 && end !== -1) {
+                        // 從字符串中移除從 start 到 end 的部分，使用 substring 擷取&拼接
+                        inputTrackName = inputTrackName.substring(0, start) + inputTrackName.substring(end + 1);
+                    }
+                }
+            }
+            removeSectionByKeyword('remix')
+            removeSectionByKeyword('feat')
+            removeSectionByKeyword('with')
+            removeSectionByKeyword('合作演出')
+            return inputTrackName.trim();
+        }
+        // 開始刪除其餘資訊
+        let clearPageFirstTrackName = removeExtraInfo(pageFirstTrackName)
+        let clearSongName = removeExtraInfo(song['Track Name'])
+
+        if (clearPageFirstTrackName !== clearSongName) {
             throw new Error('歌曲名稱不相符')
         }
-
     }
+
     // 點擊"儲存至播放清單"按鈕
     async function saveBtnClickHandler() {
         // 搜尋結果篩選 tag，歌曲或影片，點擊歌曲
@@ -442,8 +468,7 @@ ${failedAddSongsList}
             // 暫停狀態
             if (pasueStatus) {
                 console.log('暫停中，下一首將新增:', song, 'i:', i)
-                songSchedule = i
-                return
+                return songSchedule = i
             }
             try {
                 console.log(`%c第${i + 1}首: ${song['Artist Names']} - ${song['Track Name']} `, 'color:green;font-size: 20px;')
