@@ -376,6 +376,7 @@ ${failedAddSongsList}
     }
 
     // 檢查歌名 與 搜尋結果 是否一致
+    // 先把 清單跟頁面上的多於資訊刪除，才開始比對
     async function trackNameCheck(song) {
         // 按下歌曲篩選按鈕，出來的結果(可能有很多)，找第一個
         let pageFirstResultBySongFilterBtn = document.querySelector('yt-formatted-string.title.style-scope.ytmusic-responsive-list-item-renderer.complex-string[respect-html-dir][ellipsis-truncate][ellipsis-truncate-styling]')
@@ -383,6 +384,7 @@ ${failedAddSongsList}
 
         // 刪除 歌曲的其餘資訊 ( remix & feat ...其餘資訊 )
         function removeExtraInfo(inputTrackName) {
+            // 靠關鍵字，刪除 () 或 [] 的內容
             function removeSectionByKeyword(keyword) {
                 // 找關鍵字，且不區分大小寫
                 let index = inputTrackName.toLowerCase().indexOf(keyword);
@@ -399,15 +401,25 @@ ${failedAddSongsList}
                     }
                 }
             }
-            removeSectionByKeyword('remix')
-            removeSectionByKeyword('feat')
-            removeSectionByKeyword('with')
-            removeSectionByKeyword('合作演出')
+            function removeDashSection(keyword) {
+                let dashIndex = keyword.indexOf('-');
+                if (dashIndex !== -1) {
+                    inputTrackName = keyword.substring(0, dashIndex).trim();
+                }
+            }
+            const keywordList = ['remix', 'feat', 'with', '合作演出', '(']
+            keywordList.forEach(keyword => {
+                removeSectionByKeyword(keyword)
+                removeDashSection(keyword)
+            })
             return inputTrackName.trim();
         }
         // 開始刪除其餘資訊
         let clearPageFirstTrackName = removeExtraInfo(pageFirstTrackName)
         let clearSongName = removeExtraInfo(song['Track Name'])
+
+        console.log(`clearPageFirstTrackName: ${clearPageFirstTrackName}
+clearSongName: ${clearSongName}`)
 
         if (clearPageFirstTrackName !== clearSongName) {
             throw new Error('歌曲名稱不相符')
@@ -418,7 +430,8 @@ ${failedAddSongsList}
     async function saveBtnClickHandler() {
         // 搜尋結果篩選 tag，歌曲或影片，點擊歌曲
         // 點擊"..."按鈕，讓選單面板出現
-        let firstResult = document.querySelector('ytmusic-responsive-list-item-renderer.style-scope.ytmusic-shelf-renderer')
+        let searchResultList = document.querySelector("#search-page > ytmusic-tabbed-search-results-renderer > div.content.style-scope.ytmusic-tabbed-search-results-renderer > ytmusic-section-list-renderer")
+        let firstResult = searchResultList.querySelector('ytmusic-responsive-list-item-renderer.style-scope.ytmusic-shelf-renderer')
         let theMoreOptionsButton = firstResult.querySelector('tp-yt-paper-icon-button#button[aria-label="其他動作"]')
         // let theMoreOptionsButton = document.querySelector('yt-button-shape#button-shape.style-scope.ytmusic-menu-renderer[aria-label="其他動作"]')
         theMoreOptionsButton.click()
